@@ -78,6 +78,8 @@ tor-selenium run 10 --output results.json
 
 ```python
 from tor_selenium import Session, SessionManager
+from typing import Dict, Any
+from selenium.webdriver.remote.webdriver import WebDriver
 
 # Single session
 with Session() as session:
@@ -101,7 +103,13 @@ for r in results:
 A single browser session with its own Tor instance.
 
 ```python
+from typing import Optional
+
 from tor_selenium import Session
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.remote.webdriver import WebDriver
 
 # Basic usage - get IP and navigate
 with Session() as session:
@@ -109,45 +117,77 @@ with Session() as session:
     print(f"IP: {result['ip']}")
 
 # Advanced usage - control the browser directly
-from selenium.webdriver.common.by import By
-
+# This gives you full access to the Selenium WebDriver
 with Session() as session:
-    session.run("https://example.com")  # Start Tor and browser
+    session.start()  # Start Tor and browser
     
     # Now you have full control over the browser
-    driver = session.driver
+    driver: Optional[WebDriver] = session.driver
     
-    # Click buttons, fill forms, scrape data, etc.
-    driver.find_element(By.CSS_SELECTOR, "button").click()
-    driver.get("https://another-site.com")
+    # Navigate to any URL
+    driver.get("https://example.com")
+    
+    # Wait for and click buttons
+    button = WebDriverWait(driver, 10).until(
+        EC.element_to_be_clickable((By.ID, "my-button"))
+    )
+    button.click()
+    
+    # Fill forms, scrape data, etc.
+    print(f"Page title: {driver.title}")
     
     # The session will automatically clean up when exiting the context
 ```
 
 ### SessionManager Class
 
-Manage multiple parallel browser sessions.
+Manage multiple parallel browser sessions. The SessionManager accepts Session instances and gives you direct access to their drivers for full control.
 
 ```python
-from tor_selenium import SessionManager
+from typing import List
 
-manager = SessionManager(
-    max_workers=10,    # Maximum parallel sessions
-    headless=False,    # Run browsers in headless mode
-    tor_timeout=120,   # Tor startup timeout
+from tor_selenium import SessionManager, Session
+from selenium.webdriver.common.by import By
+from selenium.webdriver.remote.webdriver import WebDriver
+
+# Create a manager
+manager: SessionManager = SessionManager(
+    max_workers=5,    # Maximum parallel sessions
+    headless=False,   # Run browsers in headless mode
+    tor_timeout=120,  # Tor startup timeout
 )
 
-# Run specific number of sessions
-results = manager.run_sessions(
-    num_sessions=100,
-    progress_callback=lambda completed, total: print(f"{completed}/{total}")
-)
+# Create 5 sessions and add them to the manager
+sessions: List[Session] = []
+for i in range(5):
+    session: Session = Session(headless=False)
+    sessions.append(session)
+    manager.add_session(session)
 
-# Or run continuously for a duration
-results = manager.run_continuous(
-    duration_seconds=3600,    # Run for 1 hour
-    interval_seconds=10       # Start new session every 10 seconds
-)
+# Start all sessions (Tor + browser) in parallel
+manager.start_all()
+
+# Run an action on all drivers in PARALLEL using run_action
+def click_button(driver: WebDriver) -> None:
+    driver.get("https://example.com")
+    button = driver.find_element(By.ID, "submit-btn")
+    button.click()
+    print(f"Clicked on {driver.current_url}")
+
+results = manager.run_action(click_button)
+
+# Or access drivers directly if you need sequential control
+for session in manager.sessions:
+    driver: WebDriver = session.driver
+    driver.get("https://example.com")
+    # ... more complex interactions
+
+# Cleanup
+manager.cleanup_all()
+```
+
+# Cleanup all sessions
+manager.cleanup_all()
 ```
 
 ## Configuration Options
@@ -167,6 +207,24 @@ results = manager.run_continuous(
 | `max_workers` | int | 10 | Maximum parallel sessions |
 | `headless` | bool | False | Run browsers without GUI |
 | `tor_timeout` | int | 120 | Seconds to wait for Tor startup |
+
+### SessionManager.run_sessions() Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `num_sessions` | int | 10 | Number of sessions to run |
+| `url` | str | "https://api.ipify.org" | URL to navigate to |
+| `action_callback` | callable | None | Function to execute custom browser actions |
+| `progress_callback` | callable | None | Callback for progress updates |
+
+### SessionManager.run_continuous() Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `duration_seconds` | int | 3600 | Total time to run sessions |
+| `url` | str | "https://api.ipify.org" | URL to navigate to |
+| `action_callback` | callable | None | Function to execute custom browser actions |
+| `interval_seconds` | int | 10 | Time between session starts |
 
 ## Examples
 
@@ -196,6 +254,42 @@ print(f"Success rate: {successful}/50")
 # Print all unique IPs
 ips = [r['ip'] for r in results if r['success']]
 print(f"Unique IPs: {len(set(ips))}")
+```
+
+### Custom Actions (Clicking Buttons)
+
+```python
+from tor_selenium import SessionManager, Session
+from selenium.webdriver.common.by import By
+import time
+
+# Recommended: Full control over each browser
+# Create 5 sessions that each go to a page and click a button
+manager = SessionManager(max_workers=5, headless=False)
+
+# Create and add sessions
+for i in range(5):
+    session = Session(headless=False)
+    manager.add_session(session)
+
+# Start all (Tor + browser)
+manager.start_all()
+
+# Now use each driver's directly
+for session in manager.sessions:
+    driver = session.driver
+    driver.get("https://example.com")
+    
+    # Click a button
+    try:
+        button = driver.find_element(By.CSS_SELECTOR, "button#click-me")
+        button.click()
+        print(f"Clicked button on {driver.current_url}")
+    except Exception as e:
+        print(f"Failed: {e}")
+
+# Cleanup
+manager.cleanup_all()
 ```
 
 ### Custom URL and Headless Mode

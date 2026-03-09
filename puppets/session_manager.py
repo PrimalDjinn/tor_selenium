@@ -17,10 +17,17 @@ class SessionManager:
     This class handles running multiple sessions concurrently using
     thread pools. Each session gets its own Tor instance and browser.
     
+    The SessionManager can:
+    - Accept Session instances created by the user
+    - Create new sessions programmatically
+    - Run sessions in parallel
+    - Execute actions on all session drivers
+    
     Attributes:
         max_workers: Maximum number of parallel sessions.
         headless: Whether to run browsers in headless mode.
         tor_timeout: Timeout for Tor startup per session.
+        sessions: List of Session instances being managed.
     """
     
     def __init__(
@@ -39,39 +46,129 @@ class SessionManager:
         self.max_workers = max_workers
         self.headless = headless
         self.tor_timeout = tor_timeout
+        self.sessions: List[Session] = []
     
-    def run_session(self, session_id: Optional[str] = None) -> Dict[str, Any]:
-        """Run a single session.
+    def create_session(self, session_id: Optional[str] = None, **kwargs) -> Session:
+        """Create a new Session and add it to the manager.
         
         Args:
             session_id: Optional custom session ID.
+            **kwargs: Additional arguments passed to Session constructor.
             
         Returns:
-            Dictionary with session results.
+            The created Session instance.
         """
         session = Session(
             session_id=session_id,
-            headless=self.headless,
-            tor_timeout=self.tor_timeout,
+            headless=kwargs.get('headless', self.headless),
+            tor_timeout=kwargs.get('tor_timeout', self.tor_timeout),
         )
+        self.sessions.append(session)
+        return session
+    
+    def add_session(self, session: Session) -> None:
+        """Add an existing Session to the manager.
         
-        try:
-            return session.run()
-        except Exception as exc:
-            return {
-                "session_id": session.session_id,
-                "success": False,
-                "error": str(exc),
-            }
-        finally:
-            session.cleanup()
+        Args:
+            session: A Session instance to manage.
+        """
+        self.sessions.append(session)
+    
+    def remove_session(self, session: Session) -> None:
+        """Remove a Session from the manager.
+        
+        Note: This does NOT cleanup the session - call session.cleanup() first.
+        
+        Args:
+            session: A Session instance to remove.
+        """
+        if session in self.sessions:
+            self.sessions.remove(session)
+    
+    def clear_sessions(self) -> None:
+        """Clear all sessions from the manager without cleaning them up."""
+        self.sessions.clear()
+    
+    def start_all(self) -> None:
+        """Start all managed sessions (Tor + browser).
+        
+        Starts Tor and browser for each session in the manager.
+        Sessions are started in parallel using the thread pool.
+        """
+        logger.info(f"Starting {len(self.sessions)} sessions with {self.max_workers} workers")
+        
+        with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+            futures = {executor.submit(self._start_session, s): s for s in self.sessions}
+            
+            for future in as_completed(futures):
+                session = futures[future]
+                try:
+                    future.result()
+                    logger.info(f"[{session.session_id}] Started successfully")
+                except Exception as exc:
+                    logger.error(f"[{session.session_id}] Failed to start: {exc}")
+    
+    def _start_session(self, session: Session) -> None:
+        """Internal method to start a single session."""
+        session.start()
+    
+    def run_action(self, action: Callable[[Any], None]) -> List[Dict[str, Any]]:
+        """Run an action on all session drivers in parallel.
+        
+        Args:
+            action: A callable that takes a driver as its argument.
+                   The action will be run on each session's driver.
+            
+        Returns:
+            List of result dictionaries with success status and any errors.
+        """
+        results: List[Dict[str, Any]] = []
+        
+        with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+            futures = {}
+            for session in self.sessions:
+                future = executor.submit(self._run_action_on_session, session, action)
+                futures[future] = session.session_id
+            
+            for future in as_completed(futures):
+                session_id = futures[future]
+                try:
+                    result = future.result()
+                    results.append({"session_id": session_id, "success": True, "result": result})
+                except Exception as exc:
+                    logger.error(f"Action failed for {session_id}: {exc}")
+                    results.append({"session_id": session_id, "success": False, "error": str(exc)})
+        
+        return results
+    
+    def _run_action_on_session(self, session: Session, action: Callable[[Any], None]) -> Any:
+        """Run an action on a single session's driver."""
+        return action(session.driver)
+    
+    def cleanup_all(self) -> None:
+        """Cleanup all managed sessions.
+        
+        Stops all browsers and Tor instances.
+        """
+        logger.info(f"Cleaning up {len(self.sessions)} sessions")
+        
+        for session in self.sessions:
+            try:
+                session.cleanup()
+            except Exception as exc:
+                logger.error(f"Error cleaning up session {session.session_id}: {exc}")
+        
+        self.sessions.clear()
     
     def run_sessions(
         self,
         num_sessions: int = 10,
         progress_callback: Optional[Callable[[int, int], None]] = None,
     ) -> List[Dict[str, Any]]:
-        """Run multiple sessions in parallel.
+        """Run multiple sessions in parallel (legacy method).
+        
+        This method creates new sessions, runs them, and returns results.
+        For more control, use create_session()/add_session() and start_all().
         
         Args:
             num_sessions: Number of sessions to run.
@@ -90,7 +187,12 @@ class SessionManager:
             futures = {}
             for i in range(num_sessions):
                 session_id = f"session_{i+1}_{uuid.uuid4().hex[:6]}"
-                future = executor.submit(self.run_session, session_id)
+                session = Session(
+                    session_id=session_id,
+                    headless=self.headless,
+                    tor_timeout=self.tor_timeout,
+                )
+                future = executor.submit(session.run)
                 futures[future] = session_id
             
             # Collect results as they complete
@@ -148,8 +250,22 @@ class SessionManager:
             session_id = f"continuous_{session_num}_{uuid.uuid4().hex[:6]}"
             
             logger.info(f"Starting session {session_num}...")
-            result = self.run_session(session_id)
-            results.append(result)
+            session = Session(
+                session_id=session_id,
+                headless=self.headless,
+                tor_timeout=self.tor_timeout,
+            )
+            try:
+                result = session.run()
+                results.append(result)
+            except Exception as exc:
+                results.append({
+                    "session_id": session_id,
+                    "success": False,
+                    "error": str(exc),
+                })
+            finally:
+                session.cleanup()
             
             # Wait before next session
             if time.time() - start_time + interval_seconds < duration_seconds:

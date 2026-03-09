@@ -3,7 +3,7 @@
 import time
 import socket
 import logging
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Callable
 
 import requests
 
@@ -111,7 +111,55 @@ class Session:
         """Get the Selenium WebDriver instance."""
         return self._driver
     
-    def run(self, url: str = IP_CHECK_URL) -> Dict[str, Any]:
+    def start(self) -> None:
+        """Start the session (Tor + browser).
+        
+        This starts Tor and the browser but does NOT navigate to any URL.
+        Use this when you want full control over the driver for DOM manipulation.
+        
+        After calling start(), you can use self.driver to:
+        - Navigate to URLs
+        - Find and click elements
+        - Fill forms
+        - Execute JavaScript
+        - Take screenshots
+        - Any other Selenium operations
+        
+        Raises:
+            TorConnectionError: If Tor fails to start or connect.
+            BrowserError: If browser fails to start.
+        """
+        # Start Tor
+        logger.info(f"[{self.session_id}] Starting Tor instance...")
+        self.tor_instance = TorInstance(timeout=self.tor_timeout)
+        self.tor_instance.start()
+        
+        # Verify Tor is working
+        logger.info(f"[{self.session_id}] Verifying Tor connection...")
+        self.ip = wait_for_tor(self.tor_instance.socks_port)
+        logger.info(f"[{self.session_id}] Tor ready with IP: {self.ip}")
+        
+        # Start browser
+        logger.info(f"[{self.session_id}] Starting browser...")
+        self.browser = Browser(
+            socks_port=self.tor_instance.socks_port,
+            headless=self.headless
+        )
+        self._driver = self.browser.start()
+        logger.info(f"[{self.session_id}] Browser ready")
+    
+    def navigate(self, url: str) -> None:
+        """Navigate to a URL.
+        
+        Args:
+            url: The URL to navigate to.
+        """
+        if not self._driver:
+            raise RuntimeError("Session not started. Call start() first.")
+        self._driver.get(url)
+        time.sleep(2)  # Wait for page to load
+    
+    def run(self, url: str = IP_CHECK_URL, action_callback: Optional[Callable[[Any], None]] = None) -> Dict[str, Any]:
         """Run a complete session.
         
         This will:
@@ -119,9 +167,12 @@ class Session:
         2. Verify Tor is working
         3. Start the browser
         4. Navigate to the URL
+        5. Optionally execute custom actions via callback
         
         Args:
             url: URL to navigate to after browser starts.
+            action_callback: Optional callback function that receives the WebDriver
+                           instance for custom actions like clicking buttons.
             
         Returns:
             Dictionary with session results:
@@ -163,6 +214,15 @@ class Session:
             logger.info(f"[{self.session_id}] Navigating to {url}...")
             self._driver.get(url)
             time.sleep(5)  # Wait for page to load
+            
+            # Execute custom actions if provided
+            if action_callback:
+                logger.info(f"[{self.session_id}] Executing custom actions...")
+                try:
+                    action_callback(self._driver)
+                except Exception as exc:
+                    logger.error(f"[{self.session_id}] Custom action failed: {exc}")
+                    raise
             
             result["success"] = True
             logger.info(f"[{self.session_id}] Session completed successfully")
