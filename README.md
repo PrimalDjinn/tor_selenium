@@ -1,14 +1,14 @@
 # Puppets
 
 <p align="center">
-  <a href="https://pypi.org/project/puppets/">
-    <img src="https://img.shields.io/pypi/v/puppets.svg" alt="PyPI Version">
+  <a href="https://github.com/PrimalDjinn/puppets/releases">
+    <img src="https://img.shields.io/github/v/release/PrimalDjinn/puppets?include_prereleases&label=release" alt="GitHub Release">
   </a>
-  <a href="https://pypi.org/project/puppets/">
-    <img src="https://img.shields.io/pypi/pyversions/puppets.svg" alt="Python Versions">
+  <a href="https://github.com/PrimalDjinn/puppets/actions/workflows/ci.yml">
+    <img src="https://img.shields.io/github/actions/workflow/status/PrimalDjinn/puppets/ci?label=CI" alt="CI Status">
   </a>
   <a href="https://github.com/PrimalDjinn/puppets/blob/main/LICENSE">
-    <img src="https://img.shields.io/pypi/l/tor-selenium.svg" alt="License">
+    <img src="https://img.shields.io/github/license/PrimalDjinn/puppets" alt="License">
   </a>
 </p>
 
@@ -32,18 +32,34 @@ Automate Chrome through the Tor network with Python. Each run gives you a differ
 
 ## Installation
 
-### From PyPI (recommended)
+### From GitHub (latest version)
 
 ```bash
-pip install tor-selenium
+pip install git+https://github.com/PrimalDjinn/puppets.git
+```
+
+### From a specific release
+
+```bash
+# Install a specific version (e.g., v1.0.0)
+pip install git+https://github.com/PrimalDjinn/puppets.git@v1.0.0
+
+# Install the latest release
+pip install puppets
 ```
 
 ### From source
 
 ```bash
-git clone https://github.com/PrimalDjinn/tor_selenium.git
-cd tor_selenium
+git clone https://github.com/PrimalDjinn/puppets.git
+cd puppets
 pip install -e .
+```
+
+### From PyPI (when available)
+
+```bash
+pip install puppets
 ```
 
 ## Prerequisites
@@ -62,22 +78,22 @@ pip install -e .
 
 ```bash
 # Run 10 parallel sessions
-tor-selenium run 10
+puppets run 10
 
 # Run 100 sessions with 20 workers
-tor-selenium run 100 --workers 20
+puppets run 100 --workers 20
 
 # Run in headless mode
-tor-selenium run 50 --headless
+puppets run 50 --headless
 
 # Save results to JSON
-tor-selenium run 10 --output results.json
+puppets run 10 --output results.json
 ```
 
 ### As a Library
 
 ```python
-from tor_selenium import Session, SessionManager
+from puppets import Session, SessionManager
 from typing import Dict, Any
 from selenium.webdriver.remote.webdriver import WebDriver
 
@@ -105,7 +121,7 @@ A single browser session with its own Tor instance.
 ```python
 from typing import Optional
 
-from tor_selenium import Session
+from puppets import Session
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
@@ -146,7 +162,7 @@ Manage multiple parallel browser sessions. The SessionManager accepts Session in
 ```python
 from typing import List
 
-from tor_selenium import SessionManager, Session
+from puppets import SessionManager, Session
 from selenium.webdriver.common.by import By
 from selenium.webdriver.remote.webdriver import WebDriver
 
@@ -231,7 +247,7 @@ manager.cleanup_all()
 ### Single Session
 
 ```python
-from tor_selenium import Session
+from puppets import Session
 
 # Single session with full browser control
 with Session() as session:
@@ -242,7 +258,7 @@ with Session() as session:
 ### Parallel Sessions
 
 ```python
-from tor_selenium import SessionManager
+from puppets import SessionManager
 
 # Run 50 sessions in parallel with 10 workers
 manager = SessionManager(max_workers=10)
@@ -259,12 +275,12 @@ print(f"Unique IPs: {len(set(ips))}")
 ### Custom Actions (Full Browser Control)
 
 ```python
-from tor_selenium import SessionManager, Session
+from puppets import SessionManager, Session
 from selenium.webdriver.common.by import By
 import time
 
 # Recommended: Full control over each browser
-# Create 5 sessions that each go to a page and click a button
+# Create 5 sessions that each go to a page and interact with elements
 manager = SessionManager(max_workers=5, headless=False)
 
 # Create and add sessions
@@ -295,7 +311,7 @@ manager.cleanup_all()
 ### Custom URL and Headless Mode
 
 ```python
-from tor_selenium import Session
+from puppets import Session
 
 # Headless session to a specific URL
 session = Session(headless=True)
@@ -307,7 +323,7 @@ session.cleanup()
 ### Continuous Session Runner
 
 ```python
-from tor_selenium import SessionManager
+from puppets import SessionManager
 
 # Run sessions continuously for 1 hour
 manager = SessionManager(max_workers=5, headless=True)

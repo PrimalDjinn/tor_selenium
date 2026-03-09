@@ -16,10 +16,10 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  tor-selenium run 10                    # Run 10 parallel sessions
-  tor-selenium run 100 --workers 20      # Run 100 sessions with 20 workers
-  tor-selenium run 50 --headless         # Run in headless mode
-  tor-selenium run 5 --output results.json  # Save results to JSON
+  puppets run 10                    # Run 10 parallel sessions
+  puppets run 100 --workers 20      # Run 100 sessions with 20 workers
+  puppets run 50 --headless         # Run in headless mode
+  puppets run 5 --output results.json  # Save results to JSON
         """
     )
     
