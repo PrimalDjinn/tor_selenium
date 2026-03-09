@@ -36,23 +36,81 @@ jobs:
           name: dist
           path: dist/
 
-  publish:
+  release:
     needs: build
     runs-on: ubuntu-latest
     permissions:
-      contents: read
-      packages: write
+      contents: write
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
       - name: Download build artifacts
         uses: actions/download-artifact@v4
         with:
           name: dist
           path: dist/
 
-      - name: Publish to GitHub Packages
-        env:
-          TWINE_USERNAME: __token__
-          TWINE_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+      - name: Extract version from package
+        id: version
         run: |
-          pip install "twine<6.0"
-          twine upload --repository-url https://pypi.pkg.github.com/${{ github.repository_owner }}/ dist/*
+          VERSION=$(ls dist/*.whl | head -1 | sed 's/.*-\([0-9]*\.[0-9]*\.[0-9]*\).*/\1/')
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Detected version: $VERSION"
+
+      - name: Check if release exists
+        id: check_release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ steps.version.outputs.tag }}"
+          if gh release view "$TAG" --repo "${{ github.repository }}" > /dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "Release $TAG already exists, skipping."
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "Release $TAG does not exist, will create."
+          fi
+
+      - name: Create GitHub Release
+        if: steps.check_release.outputs.exists == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ steps.version.outputs.tag }}"
+          gh release create "$TAG" dist/* \
+            --repo "${{ github.repository }}" \
+            --title "Puppets $TAG" \
+            --generate-notes
+
+      - name: Upload assets to existing release
+        if: steps.check_release.outputs.exists == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ steps.version.outputs.tag }}"
+          for file in dist/*; do
+            gh release upload "$TAG" "$file" \
+              --repo "${{ github.repository }}" \
+              --clobber
+          done
+
+  # ──────────────────────────────────────────────────────────────────
+  # PyPI Publishing (Future)
+  # ──────────────────────────────────────────────────────────────────
+  # publish-pypi:
+  #   needs: build
+  #   runs-on: ubuntu-latest
+  #   permissions:
+  #     id-token: write  # Required for PyPI trusted publishing
+  #   environment: release
+  #   steps:
+  #     - name: Download build artifacts
+  #       uses: actions/download-artifact@v4
+  #       with:
+  #         name: dist
+  #         path: dist/
+  #
+  #     - name: Publish to PyPI
+  #       uses: pypa/gh-action-pypi-publish@release/v1
