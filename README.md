@@ -5,9 +5,9 @@
     <img src="https://img.shields.io/github/v/release/PrimalDjinn/puppets?include_prereleases&label=release" alt="GitHub Release">
   </a>
   <a href="https://github.com/PrimalDjinn/puppets/actions/workflows/ci.yml">
-    <img src="https://img.shields.io/github/actions/workflow/status/PrimalDjinn/puppets/ci?label=CI" alt="CI Status">
+    <img src="https://img.shields.io/github/actions/workflow/status/PrimalDjinn/puppets/ci.yml?label=CI" alt="CI Status">
   </a>
-  <a href="https://github.com/PrimalDjinn/puppets/blob/main/LICENSE">
+  <a href="https://github.com/PrimalDjinn/puppets/blob/master/LICENSE">
     <img src="https://img.shields.io/github/license/PrimalDjinn/puppets" alt="License">
   </a>
 </p>
