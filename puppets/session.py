@@ -188,15 +188,14 @@ class Session:
             "ip": None,
             "socks_port": None,
             "success": False,
-            "error": None,
-        }
+        }  # type: Dict[str, Any]
 
         try:
             # Start Tor
             logger.info(f"[{self.session_id}] Starting Tor instance...")
             self.tor_instance = TorInstance(timeout=self.tor_timeout)
             self.tor_instance.start()
-            result["socks_port"] = self.tor_instance.socks_port
+            result["socks_port"] = self.tor_instance.socks_port  # type: ignore[assignment]
 
             # Verify Tor is working
             logger.info(f"[{self.session_id}] Verifying Tor connection...")
@@ -210,6 +209,7 @@ class Session:
                 socks_port=self.tor_instance.socks_port, headless=self.headless
             )
             self._driver = self.browser.start()
+            assert self._driver is not None
 
             # Navigate to URL
             logger.info(f"[{self.session_id}] Navigating to {url}...")

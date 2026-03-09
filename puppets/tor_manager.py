@@ -19,7 +19,7 @@ def get_free_port() -> int:
     """Return an unused TCP port number on localhost."""
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.bind(("", 0))
-        return s.getsockname()[1]
+        return s.getsockname()[1]  # type: ignore[no-any-return]
 
 
 def find_tor_executable() -> str:
