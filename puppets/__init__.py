@@ -10,9 +10,14 @@ A library for running browser sessions through Tor with support for:
 Usage:
     from puppets import Session, SessionManager
 
-    # Single session
-    session = Session()
-    result = session.run()
+    # Quick session (auto start + cleanup)
+    with Session() as session:
+        result = session.run("https://example.com")
+
+    # Full control via driver
+    with Session() as session:
+        session.start()
+        session.driver.get("https://example.com")
 
     # Multiple parallel sessions
     manager = SessionManager(max_workers=10)
@@ -29,7 +34,7 @@ from puppets.exceptions import (
     ChromeNotFoundError,
 )
 
-__version__ = "1.0.0"
+__version__ = "1.0.1"
 __all__ = [
     "Session",
     "SessionManager",

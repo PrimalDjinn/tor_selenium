@@ -1,9 +1,10 @@
 """Parallel session management."""
 
 import logging
+import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import List, Dict, Any, Optional, Callable
+from typing import List, Dict, Any, Optional, Callable, Iterator
 
 from puppets.session import Session
 from puppets.exceptions import PuppetsError
@@ -48,12 +49,28 @@ class SessionManager:
         self.tor_timeout = tor_timeout
         self.sessions: List[Session] = []
 
+    def __repr__(self) -> str:
+        started = sum(1 for s in self.sessions if s.driver is not None)
+        return (
+            f"SessionManager(sessions={len(self.sessions)}, "
+            f"started={started}, max_workers={self.max_workers})"
+        )
+
+    def __len__(self) -> int:
+        """Return the number of managed sessions."""
+        return len(self.sessions)
+
+    def __iter__(self) -> Iterator[Session]:
+        """Iterate over managed sessions."""
+        return iter(self.sessions)
+
     def create_session(self, session_id: Optional[str] = None, **kwargs) -> Session:
         """Create a new Session and add it to the manager.
 
         Args:
             session_id: Optional custom session ID.
             **kwargs: Additional arguments passed to Session constructor.
+                Supported keys: ``headless``, ``tor_timeout``.
 
         Returns:
             The created Session instance.
@@ -89,15 +106,18 @@ class SessionManager:
         """Clear all sessions from the manager without cleaning them up."""
         self.sessions.clear()
 
-    def start_all(self) -> None:
-        """Start all managed sessions (Tor + browser).
+    def start_all(self) -> List[Session]:
+        """Start all managed sessions (Tor + browser) in parallel.
 
-        Starts Tor and browser for each session in the manager.
-        Sessions are started in parallel using the thread pool.
+        Returns:
+            List of sessions that failed to start. An empty list means
+            all sessions started successfully.
         """
         logger.info(
             f"Starting {len(self.sessions)} sessions with {self.max_workers} workers"
         )
+
+        failed: List[Session] = []
 
         with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
             futures = {
@@ -111,20 +131,26 @@ class SessionManager:
                     logger.info(f"[{session.session_id}] Started successfully")
                 except Exception as exc:
                     logger.error(f"[{session.session_id}] Failed to start: {exc}")
+                    failed.append(session)
+
+        return failed
 
     def _start_session(self, session: Session) -> None:
         """Internal method to start a single session."""
         session.start()
 
-    def run_action(self, action: Callable[[Any], None]) -> List[Dict[str, Any]]:
+    def run_action(self, action: Callable[[Any], Any]) -> List[Dict[str, Any]]:
         """Run an action on all session drivers in parallel.
 
         Args:
-            action: A callable that takes a driver as its argument.
-                   The action will be run on each session's driver.
+            action: A callable that takes a WebDriver as its argument.
+                The action will be run on each session's driver.
 
         Returns:
             List of result dictionaries with success status and any errors.
+
+        Raises:
+            PuppetsError: If any session has not been started (driver is None).
         """
         results: List[Dict[str, Any]] = []
 
@@ -150,15 +176,20 @@ class SessionManager:
         return results
 
     def _run_action_on_session(
-        self, session: Session, action: Callable[[Any], None]
+        self, session: Session, action: Callable[[Any], Any]
     ) -> Any:
         """Run an action on a single session's driver."""
+        if session.driver is None:
+            raise PuppetsError(
+                f"Session {session.session_id!r} has no driver. "
+                f"Call start_all() before run_action()."
+            )
         return action(session.driver)
 
     def cleanup_all(self) -> None:
         """Cleanup all managed sessions.
 
-        Stops all browsers and Tor instances.
+        Stops all browsers and Tor instances, then clears the session list.
         """
         logger.info(f"Cleaning up {len(self.sessions)} sessions")
 
@@ -175,9 +206,9 @@ class SessionManager:
         num_sessions: int = 10,
         progress_callback: Optional[Callable[[int, int], None]] = None,
     ) -> List[Dict[str, Any]]:
-        """Run multiple sessions in parallel (legacy method).
+        """Run multiple sessions in parallel.
 
-        This method creates new sessions, runs them, and returns results.
+        Creates new sessions, runs them, and returns results.
         For more control, use create_session()/add_session() and start_all().
 
         Args:
@@ -238,7 +269,10 @@ class SessionManager:
         duration_seconds: int = 3600,
         interval_seconds: int = 10,
     ) -> List[Dict[str, Any]]:
-        """Run sessions continuously for a duration.
+        """Run sessions sequentially for a duration.
+
+        Each session runs one at a time with a pause between them.
+        For parallel execution, use run_sessions() or start_all() instead.
 
         Args:
             duration_seconds: Total time to run.
@@ -247,8 +281,6 @@ class SessionManager:
         Returns:
             List of all session results.
         """
-        import time
-
         results: List[Dict[str, Any]] = []
         start_time = time.time()
         session_num = 0
@@ -276,11 +308,10 @@ class SessionManager:
                         "error": str(exc),
                     }
                 )
-            finally:
-                session.cleanup()
 
             # Wait before next session
-            if time.time() - start_time + interval_seconds < duration_seconds:
+            elapsed = time.time() - start_time
+            if elapsed + interval_seconds < duration_seconds:
                 time.sleep(interval_seconds)
 
         successful = sum(1 for r in results if r.get("success", False))

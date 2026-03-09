@@ -33,12 +33,14 @@ Automate Chrome through the Tor network with Python. Each run gives you a differ
 ## Key Features
 
 ### 🔐 Tor Integration
+
 - **Isolated Tor Instances** - Each browser session runs through its own dedicated Tor process
 - **No System Tor Conflict** - Uses random free ports, so it won't interfere with any existing Tor installation
 - **Identity Rotation** - Request a new Tor identity anytime to get a fresh IP address
 - **Full Tor Control** - Access Tor's control port for advanced configuration
 
 ### 🎭 Undetected Chrome
+
 - **Bypass Detection** - Uses `undetected-chromedriver` to avoid bot detection
 - **Automatic ChromeDriver** - No need to manually manage ChromeDriver versions
 - **Stealth Mode** - Automatically patches Chrome to appear as a regular browser
@@ -64,8 +66,8 @@ pip install git+https://github.com/PrimalDjinn/puppets.git
 ### From a specific release
 
 ```bash
-# Install a specific version (e.g., v1.0.0)
-pip install git+https://github.com/PrimalDjinn/puppets.git@v1.0.0
+# Install a specific version (e.g., v1.0.1)
+pip install git+https://github.com/PrimalDjinn/puppets.git@v1.0.1
 ```
 
 ### From GitHub Releases
@@ -86,11 +88,11 @@ pip install -e .
 
 ## Prerequisites
 
-| Dependency | Install |
-|------------|---------|
-| **Tor** | `sudo apt install tor` (Debian/Ubuntu) · `brew install tor` (macOS) |
-| **Google Chrome** | [https://www.google.com/chrome/](https://www.google.com/chrome/) |
-| **Python ≥ 3.8** | [https://www.python.org/downloads/](https://www.python.org/downloads/) |
+| Dependency        | Install                                                                |
+| ----------------- | ---------------------------------------------------------------------- |
+| **Tor**           | `sudo apt install tor` (Debian/Ubuntu) · `brew install tor` (macOS)    |
+| **Google Chrome** | [https://www.google.com/chrome/](https://www.google.com/chrome/)       |
+| **Python ≥ 3.9**  | [https://www.python.org/downloads/](https://www.python.org/downloads/) |
 
 > **Note:** You no longer need to download ChromeDriver manually — `undetected-chromedriver` handles that automatically.
 
@@ -158,22 +160,22 @@ with Session() as session:
 # This gives you full access to the Selenium WebDriver
 with Session() as session:
     session.start()  # Start Tor and browser
-    
+
     # Now you have full control over the browser
     driver: Optional[WebDriver] = session.driver
-    
+
     # Navigate to any URL
     driver.get("https://example.com")
-    
+
     # Wait for and interact with elements
     button = WebDriverWait(driver, 10).until(
         EC.element_to_be_clickable((By.ID, "my-button"))
     )
     button.click()
-    
+
     # Fill forms, scrape data, execute JavaScript, take screenshots, etc.
     print(f"Page title: {driver.title}")
-    
+
     # The session will automatically clean up when exiting the context
 ```
 
@@ -224,45 +226,37 @@ for session in manager.sessions:
 manager.cleanup_all()
 ```
 
-# Cleanup all sessions
-manager.cleanup_all()
-```
-
 ## Configuration Options
 
 ### Session Options
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `session_id` | str | auto-generated | Custom session identifier |
-| `headless` | bool | False | Run browser without GUI |
-| `tor_timeout` | int | 120 | Seconds to wait for Tor startup |
+| Option        | Type | Default        | Description                     |
+| ------------- | ---- | -------------- | ------------------------------- |
+| `session_id`  | str  | auto-generated | Custom session identifier       |
+| `headless`    | bool | False          | Run browser without GUI         |
+| `tor_timeout` | int  | 120            | Seconds to wait for Tor startup |
 
 ### SessionManager Options
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `max_workers` | int | 10 | Maximum parallel sessions |
-| `headless` | bool | False | Run browsers without GUI |
-| `tor_timeout` | int | 120 | Seconds to wait for Tor startup |
+| Option        | Type | Default | Description                     |
+| ------------- | ---- | ------- | ------------------------------- |
+| `max_workers` | int  | 10      | Maximum parallel sessions       |
+| `headless`    | bool | False   | Run browsers without GUI        |
+| `tor_timeout` | int  | 120     | Seconds to wait for Tor startup |
 
 ### SessionManager.run_sessions() Options
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `num_sessions` | int | 10 | Number of sessions to run |
-| `url` | str | "https://api.ipify.org" | URL to navigate to |
-| `action_callback` | callable | None | Function to execute custom browser actions |
-| `progress_callback` | callable | None | Callback for progress updates |
+| Option              | Type     | Default | Description                   |
+| ------------------- | -------- | ------- | ----------------------------- |
+| `num_sessions`      | int      | 10      | Number of sessions to run     |
+| `progress_callback` | callable | None    | Callback for progress updates |
 
 ### SessionManager.run_continuous() Options
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `duration_seconds` | int | 3600 | Total time to run sessions |
-| `url` | str | "https://api.ipify.org" | URL to navigate to |
-| `action_callback` | callable | None | Function to execute custom browser actions |
-| `interval_seconds` | int | 10 | Time between session starts |
+| Option             | Type | Default | Description                 |
+| ------------------ | ---- | ------- | --------------------------- |
+| `duration_seconds` | int  | 3600    | Total time to run sessions  |
+| `interval_seconds` | int  | 10      | Time between session starts |
 
 ## Examples
 
@@ -317,7 +311,7 @@ manager.start_all()
 for session in manager.sessions:
     driver = session.driver
     driver.get("https://example.com")
-    
+
     # Click a button
     try:
         button = driver.find_element(By.CSS_SELECTOR, "button#click-me")
@@ -396,8 +390,8 @@ pytest
 ### Code Formatting
 
 ```bash
-black tor_selenium/
-mypy tor_selenium/
+black puppets/ tests/
+mypy puppets/
 ```
 
 ## License

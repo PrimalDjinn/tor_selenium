@@ -245,36 +245,3 @@ with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
 manager.cleanup_all()
 ```
 
-## Current vs Proposed API
-
-### Current (Problematic)
-```python
-manager = SessionManager(max_workers=5)
-# Can't pass custom sessions
-# Can't access drivers directly
-results = manager.run_sessions(num_sessions=5, url="...", action_callback=...)
-```
-
-### Proposed (Clean)
-```python
-manager = SessionManager(max_workers=5)
-
-# Create sessions with full control
-for i in range(5):
-    session = Session(headless=False)
-    manager.add_session(session)
-
-# Start all (Tor + browser)
-manager.start_all()
-
-# Access drivers directly for full control
-for session in manager.sessions:
-    session.driver.get("https://example.com")
-    session.driver.find_element(By.ID, "button").click()
-
-# Or run in parallel
-manager.run_action(lambda driver: driver.get("https://example.com"))
-
-# Cleanup
-manager.cleanup_all()
-```

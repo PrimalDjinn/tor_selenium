@@ -127,6 +127,13 @@ class Browser:
                 pass
             self.driver = None
 
+    def __repr__(self) -> str:
+        status = "running" if self.driver else "stopped"
+        return (
+            f"Browser(socks_port={self.socks_port}, "
+            f"headless={self.headless}, status={status!r})"
+        )
+
     def __enter__(self):
         """Context manager entry."""
         self.start()

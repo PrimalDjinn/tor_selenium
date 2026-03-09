@@ -16,7 +16,13 @@ logger = logging.getLogger(__name__)
 
 
 def get_free_port() -> int:
-    """Return an unused TCP port number on localhost."""
+    """Return an unused TCP port number on localhost.
+
+    Note:
+        There is an inherent TOCTOU race between releasing the port here
+        and binding it in Tor. In practice, stem will raise an error on
+        port conflict, which callers should handle with a retry.
+    """
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.bind(("", 0))
         return s.getsockname()[1]  # type: ignore[no-any-return]
@@ -140,7 +146,7 @@ class TorInstance:
             TorConnectionError: If authentication or signal fails.
         """
         try:
-            self._controller = Controller.from_port(port=str(self.control_port))
+            self._controller = Controller.from_port(port=self.control_port)
             self._controller.authenticate()
             self._controller.signal(Signal.NEWNYM)  # type: ignore
         except Exception as exc:
@@ -164,6 +170,13 @@ class TorInstance:
             except Exception:
                 pass
             self._controller = None
+
+    def __repr__(self) -> str:
+        status = "running" if self.process else "stopped"
+        return (
+            f"TorInstance(socks_port={self.socks_port}, "
+            f"control_port={self.control_port}, status={status!r})"
+        )
 
     def __enter__(self):
         """Context manager entry."""
