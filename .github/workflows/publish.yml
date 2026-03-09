@@ -55,4 +55,4 @@ jobs:
           TWINE_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
         run: |
           pip install "twine<6.0"
-          twine upload --repository-url https://pypi.pkg.github.com/ dist/*
+          twine upload --repository-url https://pypi.pkg.github.com/${{ github.repository_owner }}/ dist/*
