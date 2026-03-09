@@ -41,7 +41,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      id-token: write
+      packages: write
     steps:
       - name: Download build artifacts
         uses: actions/download-artifact@v4
@@ -50,6 +50,9 @@ jobs:
           path: dist/
 
       - name: Publish to GitHub Packages
-        uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          repository-url: https://pypi.pkg.github.com/
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          pip install twine
+          twine upload --repository-url https://pypi.pkg.github.com/ dist/*
