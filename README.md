@@ -32,6 +32,12 @@ Automate Chrome through the Tor network with Python. Each run gives you a differ
 
 ## Installation
 
+### From GitHub Packages
+
+```bash
+pip install puppets --index-url https://pypi.pkg.github.com/PrimalDjinn
+```
+
 ### From GitHub (latest version)
 
 ```bash
@@ -54,12 +60,6 @@ pip install puppets
 git clone https://github.com/PrimalDjinn/puppets.git
 cd puppets
 pip install -e .
-```
-
-### From PyPI (when available)
-
-```bash
-pip install puppets
 ```
 
 ## Prerequisites
