@@ -19,15 +19,14 @@ jobs:
 
       - name: Install build dependencies
         run: |
-          python -m pip install --upgrade pip
-          pip install build
+          python -m pip install --upgrade pip setuptools wheel build
 
       - name: Build package
         run: python -m build
 
       - name: Check package
         run: |
-          pip install twine
+          pip install "twine<6.0"
           twine check dist/*
 
       - name: Upload build artifacts
@@ -54,5 +53,5 @@ jobs:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          pip install twine
+          pip install "twine<6.0"
           twine upload --repository-url https://pypi.pkg.github.com/ dist/*
