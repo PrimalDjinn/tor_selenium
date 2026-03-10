@@ -14,8 +14,39 @@ from puppets.exceptions import BrowserError, ChromeNotFoundError
 logger = logging.getLogger(__name__)
 
 
+def _read_chrome_version_from_registry() -> Optional[int]:
+    """Try to read the version string from the Windows registry.
+
+    Chrome keeps its version in two possible locations depending on whether
+    it's installed for the current user or all users.  We look under both
+    hive **HKCU** and **HKLM** at
+    ``Software\Google\Chrome\BLBeacon``.
+
+    Returns the major version number if found, otherwise ``None``.
+    """
+    try:
+        import winreg
+    except ImportError:  # not on Windows
+        return None
+
+    for hive in (winreg.HKEY_CURRENT_USER, winreg.HKEY_LOCAL_MACHINE):
+        try:
+            key = winreg.OpenKey(hive, r"Software\Google\Chrome\BLBeacon")
+            version_str, _ = winreg.QueryValueEx(key, "version")
+            m = re.search(r"(\d+)", version_str)
+            if m:
+                return int(m.group(1))
+        except Exception:
+            continue
+    return None
+
+
 def detect_chrome_version() -> Optional[int]:
     """Detect the installed Chrome/Chromium major version.
+
+    On Linux/macOS this invokes various ``chrome``/``chromium`` binaries with
+    ``--version``.  On Windows the implementation does the same _and_ falls
+    back to querying the registry if the binary lookup fails.
 
     Returns:
         Major version number, or None if not detected.
@@ -56,7 +87,11 @@ def detect_chrome_version() -> Optional[int]:
             out = subprocess.check_output(
                 [chrome_cmd, "--version"], stderr=subprocess.DEVNULL
             )
-            m = re.search(r"(\d+)", out.decode())
+            text = out.decode()
+            # some Windows builds (when Chrome is already running) output
+            # "Opening in existing browser session." which contains no version
+            # number at all; in that case fall through to the registry lookup
+            m = re.search(r"(\d+)", text)
             if m:
                 version = int(m.group(1))
                 logger.debug("detected %s version %s", chrome_cmd, version)
@@ -67,6 +102,13 @@ def detect_chrome_version() -> Optional[int]:
         except Exception as e:
             logger.debug("failed to get version from %s: %s", chrome_cmd, e)
             continue
+
+    # registry fallback is only meaningful on Windows
+    if system == "Windows":
+        version = _read_chrome_version_from_registry()
+        if version:
+            logger.debug("detected chrome version %s via registry", version)
+            return version
 
     return None
 
