@@ -70,7 +70,8 @@ class SessionManager:
         Args:
             session_id: Optional custom session ID.
             **kwargs: Additional arguments passed to Session constructor.
-                Supported keys: ``headless``, ``tor_timeout``.
+                Supported keys: ``headless``, ``tor_timeout``,
+                ``flags``, and ``browser_start_timeout``.
 
         Returns:
             The created Session instance.
@@ -79,6 +80,8 @@ class SessionManager:
             session_id=session_id,
             headless=kwargs.get("headless", self.headless),
             tor_timeout=kwargs.get("tor_timeout", self.tor_timeout),
+            flags=kwargs.get("flags"),
+            browser_start_timeout=kwargs.get("browser_start_timeout", 30),
         )
         self.sessions.append(session)
         return session
@@ -205,6 +208,7 @@ class SessionManager:
         self,
         num_sessions: int = 10,
         progress_callback: Optional[Callable[[int, int], None]] = None,
+        **kwargs,
     ) -> List[Dict[str, Any]]:
         """Run multiple sessions in parallel.
 
@@ -232,6 +236,7 @@ class SessionManager:
                     session_id=session_id,
                     headless=self.headless,
                     tor_timeout=self.tor_timeout,
+                    flags=kwargs.get("flags"),
                 )
                 future = executor.submit(session.run)
                 futures[future] = session_id
