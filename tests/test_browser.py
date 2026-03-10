@@ -104,6 +104,11 @@ class TestBrowser:
         assert browser.socks_port == 9050
         assert browser.driver is None
 
+    def test_browser_start_timeout_attribute(self):
+        """Constructor should set the start_timeout attribute."""
+        browser = Browser(socks_port=9050, start_timeout=5)
+        assert browser.start_timeout == 5
+
     def test_browser_headless_option(self):
         """Test Browser accepts headless option."""
         browser = Browser(socks_port=9050, headless=True)
@@ -132,6 +137,23 @@ class TestBrowser:
 
         assert driver is mock_driver
         assert browser.driver is mock_driver
+
+    @patch("puppets.browser.uc.Chrome")
+    @patch("puppets.browser.detect_chrome_version")
+    def test_browser_start_timeout(self, mock_detect, mock_chrome):
+        """Timeout while launching should raise BrowserError."""
+        mock_detect.return_value = 120
+
+        def slow_launch(*args, **kwargs):
+            import time
+            time.sleep(0.1)
+            return Mock()
+
+        mock_chrome.side_effect = slow_launch
+
+        browser = Browser(socks_port=9050, start_timeout=0.01)
+        with pytest.raises(BrowserError):
+            browser.start()
 
     def test_browser_stop(self):
         """Test Browser.stop() quits driver."""
