@@ -125,6 +125,7 @@ class Browser:
         socks_port: Optional[int] = None,
         headless: bool = False,
         flags: Optional[List[str]] = None,
+        start_timeout: int = 30,
     ):
         """Initialize a new browser.
 
@@ -132,12 +133,16 @@ class Browser:
             socks_port: The Tor SOCKS proxy port, or None for direct transport.
             headless: Whether to run browser in headless mode.
             flags: Optional list of Chrome flags to add.
+            start_timeout: Seconds to wait for the browser to launch before
+                raising an error (default 30s).  This guards against
+                undetected-chromedriver hanging indefinitely.
         """
         self.driver: Optional[uc.Chrome] = None
         self.socks_port = socks_port
         self.headless = headless
         self.flags = flags or []
         self._version_main: Optional[int] = None
+        self.start_timeout = start_timeout
 
     def start(self) -> uc.Chrome:
         """Start the browser with Tor proxy.
@@ -177,11 +182,39 @@ class Browser:
         for flag in self.flags:
             opts.add_argument(flag)
 
-        try:
+        logger.debug(
+            "Starting Chrome with options: socks_port=%s, headless=%s, flags=%s, "
+            "version_main=%s, timeout=%s",
+            self.socks_port,
+            self.headless,
+            self.flags,
+            self._version_main,
+            self.start_timeout,
+        )
+
+        # Attempt to start Chrome; wrap in a timeout so we don't hang indefinitely
+        # (undetected-chromedriver may block while downloading a matching driver,
+        # or if the handshake with the browser never completes).  Using a thread
+        # executor allows us to enforce a wall‑clock timeout.
+        import concurrent.futures
+
+        def _launch():
             if self._version_main:
-                self.driver = uc.Chrome(options=opts, version_main=self._version_main)
+                return uc.Chrome(options=opts, version_main=self._version_main)
             else:
-                self.driver = uc.Chrome(options=opts)
+                return uc.Chrome(options=opts)
+
+        start_time = time.time()
+        try:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                future = executor.submit(_launch)
+                # allow callers to override timeout by passing start_timeout attr
+                timeout = getattr(self, "start_timeout", 30)
+                self.driver = future.result(timeout=timeout)
+        except concurrent.futures.TimeoutError as exc:
+            raise BrowserError(
+                f"Timed out after {timeout} seconds while starting Chrome/ChromeDriver"
+            ) from exc
         except Exception as exc:
             error_msg = str(exc).lower()
             if "chromedriver" in error_msg or "chrome" in error_msg:
@@ -195,6 +228,9 @@ class Browser:
                     "  pip install --upgrade undetected-chromedriver"
                 ) from exc
             raise
+        finally:
+            elapsed = time.time() - start_time
+            logger.debug(f"uc.Chrome() returned after {elapsed:.1f}s")
 
         return self.driver
 
