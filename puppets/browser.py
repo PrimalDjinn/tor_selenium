@@ -3,6 +3,9 @@
 import subprocess
 import re
 import logging
+import platform
+import shutil
+import os
 from typing import Optional, List
 
 import undetected_chromedriver as uc
@@ -17,14 +20,38 @@ def detect_chrome_version() -> Optional[int]:
     Returns:
         Major version number, or None if not detected.
     """
-    chrome_commands = [
-        "google-chrome",
-        "google-chrome-stable",
-        "chromium",
-        "chromium-browser",
-    ]
+    # Build a list of possible Chrome/Chromium executables depending on platform.
+    chrome_commands: List[str]
+    system = platform.system()
+    if system == "Windows":
+        # on Windows we can look for the command in PATH or common install locations
+        chrome_commands = [
+            "chrome",
+            "chrome.exe",
+            # default installation paths
+            r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+            r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+            r"C:\Program Files\Chromium\Application\chrome.exe",
+        ]
+    else:
+        chrome_commands = [
+            "google-chrome",
+            "google-chrome-stable",
+            "chromium",
+            "chromium-browser",
+        ]
 
     for chrome_cmd in chrome_commands:
+        # if the executable isn't available, skip early to avoid noisy logs
+        if not os.path.isabs(chrome_cmd):
+            # command name; check PATH
+            if shutil.which(chrome_cmd) is None:
+                continue
+        else:
+            # absolute path; ensure it exists
+            if not os.path.exists(chrome_cmd):
+                continue
+
         try:
             out = subprocess.check_output(
                 [chrome_cmd, "--version"], stderr=subprocess.DEVNULL
@@ -35,6 +62,7 @@ def detect_chrome_version() -> Optional[int]:
                 logger.debug("detected %s version %s", chrome_cmd, version)
                 return version
         except FileNotFoundError:
+            # binary disappeared between which check and invocation
             continue
         except Exception as e:
             logger.debug("failed to get version from %s: %s", chrome_cmd, e)
@@ -50,11 +78,16 @@ class Browser:
         driver: The Selenium WebDriver instance.
     """
 
-    def __init__(self, socks_port: int, headless: bool = False, flags: Optional[List[str]] = None):
+    def __init__(
+        self,
+        socks_port: Optional[int] = None,
+        headless: bool = False,
+        flags: Optional[List[str]] = None,
+    ):
         """Initialize a new browser.
 
         Args:
-            socks_port: The Tor SOCKS proxy port.
+            socks_port: The Tor SOCKS proxy port, or None for direct transport.
             headless: Whether to run browser in headless mode.
             flags: Optional list of Chrome flags to add.
         """
@@ -80,21 +113,21 @@ class Browser:
         if self._version_main is None:
             raise ChromeNotFoundError(
                 "No Chrome/Chromium browser found. Please install one of:\n"
-                "  - Google Chrome: https://www.google.com/chrome/\n"
+                "  - Google Chrome: https://www.google.com/chrome/ (Windows/Mac/Linux)\n"
                 "  - Chromium: sudo apt install chromium-browser (Debian/Ubuntu)\n"
-                "  - Or: brew install chromium (macOS)\n"
+                "  - brew install chromium (macOS)\n"
+                "On Windows the installer is available from the Chrome website above.\n"
                 "The browser is required for this script to work."
             )
 
-        # Configure proxy
-        # Chrome's --proxy-server flag only accepts socks5://, not socks5h://.
-        # Chrome routes DNS through the SOCKS5 proxy automatically.
-        PROXY = f"socks5://127.0.0.1:{self.socks_port}"
-
         opts = uc.ChromeOptions()
-        opts.add_argument(f"--proxy-server={PROXY}")
-        opts.add_argument("--host-resolver-rules=MAP * ~NOTFOUND , EXCLUDE 127.0.0.1")
-        opts.add_argument("--proxy-bypass-list=<-loopback>")
+        if self.socks_port:
+            PROXY = f"socks5://127.0.0.1:{self.socks_port}"
+            opts.add_argument(f"--proxy-server={PROXY}")
+            opts.add_argument(
+                "--host-resolver-rules=MAP * ~NOTFOUND , EXCLUDE 127.0.0.1"
+            )
+            opts.add_argument("--proxy-bypass-list=<-loopback>")
 
         if self.headless:
             opts.add_argument("--headless=new")
