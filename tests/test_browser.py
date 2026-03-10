@@ -1,6 +1,8 @@
 """Tests for browser module."""
 
 import pytest
+import platform
+import shutil
 from unittest.mock import Mock, patch, MagicMock
 from puppets.browser import Browser, detect_chrome_version
 from puppets.exceptions import ChromeNotFoundError, BrowserError
@@ -10,15 +12,19 @@ class TestDetectChromeVersion:
     """Test detect_chrome_version function."""
 
     @patch("puppets.browser.subprocess.check_output")
-    def test_detects_google_chrome(self, mock_check_output):
-        """Test detection of Google Chrome."""
+    def test_detects_google_chrome(self, mock_check_output, monkeypatch):
+        """Test detection of Google Chrome (non-Windows)."""
+        monkeypatch.setattr(platform, "system", lambda: "Linux")
+        monkeypatch.setattr(shutil, "which", lambda cmd: cmd)
         mock_check_output.return_value = b"Google Chrome 120.0.6099.109"
         version = detect_chrome_version()
         assert version == 120
 
     @patch("puppets.browser.subprocess.check_output")
-    def test_detects_chromium(self, mock_check_output):
-        """Test detection of Chromium."""
+    def test_detects_chromium(self, mock_check_output, monkeypatch):
+        """Test detection of Chromium (non-Windows)."""
+        monkeypatch.setattr(platform, "system", lambda: "Linux")
+        monkeypatch.setattr(shutil, "which", lambda cmd: cmd)
         # First call raises FileNotFoundError, second returns chromium
         mock_check_output.side_effect = [
             FileNotFoundError(),
@@ -28,8 +34,29 @@ class TestDetectChromeVersion:
         assert version == 119
 
     @patch("puppets.browser.subprocess.check_output")
-    def test_returns_none_when_no_chrome(self, mock_check_output):
-        """Test returns None when no Chrome is found."""
+    def test_returns_none_when_no_chrome(self, mock_check_output, monkeypatch):
+        """Test returns None when no Chrome is found (non-Windows)."""
+        monkeypatch.setattr(platform, "system", lambda: "Linux")
+        monkeypatch.setattr(shutil, "which", lambda cmd: None)
+        mock_check_output.side_effect = FileNotFoundError()
+        version = detect_chrome_version()
+        assert version is None
+
+    @patch("puppets.browser.subprocess.check_output")
+    def test_detects_chrome_on_windows(self, mock_check_output, monkeypatch):
+        """Ensure detection works when running on Windows."""
+        monkeypatch.setattr(platform, "system", lambda: "Windows")
+        # ensure which resolves so the loop tries the command
+        monkeypatch.setattr(shutil, "which", lambda cmd: cmd)
+        mock_check_output.return_value = b"Google Chrome 120.0.6099.109"
+        version = detect_chrome_version()
+        assert version == 120
+
+    @patch("puppets.browser.subprocess.check_output")
+    def test_windows_no_chrome(self, mock_check_output, monkeypatch):
+        """Return None on Windows when no browser is installed."""
+        monkeypatch.setattr(platform, "system", lambda: "Windows")
+        monkeypatch.setattr(shutil, "which", lambda cmd: None)
         mock_check_output.side_effect = FileNotFoundError()
         version = detect_chrome_version()
         assert version is None
