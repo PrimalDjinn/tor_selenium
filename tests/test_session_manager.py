@@ -84,6 +84,12 @@ class TestSessionManagement:
         session = manager.create_session(headless=False)
         assert session.headless is False
 
+    def test_create_session_browser_timeout(self):
+        """Ensure browser_start_timeout can be passed through."""
+        manager = SessionManager()
+        session = manager.create_session(browser_start_timeout=77)
+        assert session.browser_start_timeout == 77
+
     def test_add_session(self):
         """Test add_session appends to list."""
         manager = SessionManager()
