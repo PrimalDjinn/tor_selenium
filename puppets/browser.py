@@ -3,7 +3,7 @@
 import subprocess
 import re
 import logging
-from typing import Optional
+from typing import Optional, List
 
 import undetected_chromedriver as uc
 from puppets.exceptions import BrowserError, ChromeNotFoundError
@@ -50,16 +50,18 @@ class Browser:
         driver: The Selenium WebDriver instance.
     """
 
-    def __init__(self, socks_port: int, headless: bool = False):
+    def __init__(self, socks_port: int, headless: bool = False, flags: Optional[List[str]] = None):
         """Initialize a new browser.
 
         Args:
             socks_port: The Tor SOCKS proxy port.
             headless: Whether to run browser in headless mode.
+            flags: Optional list of Chrome flags to add.
         """
         self.driver: Optional[uc.Chrome] = None
         self.socks_port = socks_port
         self.headless = headless
+        self.flags = flags or []
         self._version_main: Optional[int] = None
 
     def start(self) -> uc.Chrome:
@@ -96,6 +98,9 @@ class Browser:
 
         if self.headless:
             opts.add_argument("--headless=new")
+
+        for flag in self.flags:
+            opts.add_argument(flag)
 
         try:
             if self._version_main:
