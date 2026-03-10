@@ -3,6 +3,7 @@
 import pytest
 import platform
 import shutil
+import os
 from unittest.mock import Mock, patch, MagicMock
 from puppets.browser import Browser, detect_chrome_version
 from puppets.exceptions import ChromeNotFoundError, BrowserError
@@ -44,7 +45,7 @@ class TestDetectChromeVersion:
 
     @patch("puppets.browser.subprocess.check_output")
     def test_detects_chrome_on_windows(self, mock_check_output, monkeypatch):
-        """Ensure detection works when running on Windows."""
+        """Ensure detection works when running on Windows via binary lookup."""
         monkeypatch.setattr(platform, "system", lambda: "Windows")
         # ensure which resolves so the loop tries the command
         monkeypatch.setattr(shutil, "which", lambda cmd: cmd)
@@ -53,10 +54,42 @@ class TestDetectChromeVersion:
         assert version == 120
 
     @patch("puppets.browser.subprocess.check_output")
+    def test_windows_running_chrome_uses_registry(self, mock_check_output, monkeypatch):
+        """If invoking the binary returns the "opening" message, fallback to registry."""
+        monkeypatch.setattr(platform, "system", lambda: "Windows")
+        monkeypatch.setattr(shutil, "which", lambda cmd: cmd)
+        # binary output that lacks a version number
+        mock_check_output.return_value = b"Opening in existing browser session."
+        # mock registry function to return version
+        monkeypatch.setattr(
+            'puppets.browser._read_chrome_version_from_registry',
+            lambda: 123,
+        )
+        version = detect_chrome_version()
+        assert version == 123
+
+    def test_registry_lookup_only(self, monkeypatch):
+        """Registry reader returns value even if no executables are present."""
+        monkeypatch.setattr(platform, "system", lambda: "Windows")
+        monkeypatch.setattr(shutil, "which", lambda cmd: None)
+        # ensure absolute path check fails as well
+        monkeypatch.setattr(os.path, "exists", lambda p: False)
+        monkeypatch.setattr(
+            'puppets.browser._read_chrome_version_from_registry',
+            lambda: 88,
+        )
+        version = detect_chrome_version()
+        assert version == 88
+
+    @patch("puppets.browser.subprocess.check_output")
     def test_windows_no_chrome(self, mock_check_output, monkeypatch):
         """Return None on Windows when no browser is installed."""
         monkeypatch.setattr(platform, "system", lambda: "Windows")
         monkeypatch.setattr(shutil, "which", lambda cmd: None)
+        monkeypatch.setattr(
+            'puppets.browser._read_chrome_version_from_registry',
+            lambda: None,
+        )
         mock_check_output.side_effect = FileNotFoundError()
         version = detect_chrome_version()
         assert version is None
